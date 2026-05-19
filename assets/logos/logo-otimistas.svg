@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 200" fill="none">
+  <g fill="#FF7A1A">
+    <path d="M90 30 C50 30 20 60 20 100 C20 140 50 170 90 170 C108 170 124 163 137 152 L120 134 C112 142 102 146 90 146 C65 146 45 126 45 100 C45 74 65 54 90 54 C102 54 112 58 120 66 L137 48 C124 37 108 30 90 30 Z"/>
+    <circle cx="90" cy="100" r="14"/>
+    <path d="M160 158 L122 80 L114 80 L100 110 L116 110 L120 102 L142 152 Z"/>
+  </g>
+  <text x="200" y="135" font-family="Inter, sans-serif" font-weight="800" font-size="92" fill="#FF7A1A" letter-spacing="-2">Otimistas</text>
+</svg>
