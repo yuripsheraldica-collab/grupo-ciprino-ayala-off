@@ -2,56 +2,54 @@
   const WHATSAPP = "5515998589225";
 
   // ─── RD STATION ────────────────────────────────────────────────────────────
-  // ID do formulário nativo criado no RD Station Marketing
-  const RD_FORM_ID = "formulario-nativo-dac32ba0eeb6401cffc3";
+  // Client ID da conta RD Station (usado no endpoint público de conversões)
+  const RD_CLIENT_ID = "1136833";
 
   /**
-   * Envia os dados do lead para o RD Station como se o formulário nativo
-   * tivesse sido submetido. Usa a mesma lib RDStationForms que o embed usa.
-   * Falha silenciosamente para não bloquear o fluxo do WhatsApp.
+   * Envia o lead para o RD Station via API pública de conversões (v3).
+   * Não requer token secreto — usa o client_id público da conta.
+   * Retorna uma Promise que resolve após o envio (ou falha silenciosa).
+   *
+   * Fluxo corrigido:
+   *   1. Valida e coleta dados do formulário customizado
+   *   2. POST para api.rd.station.com/platform/contacts
+   *   3. Abre o WhatsApp SÓ após confirmação (ou timeout de 3s)
    */
   function sendToRDStation(data, source) {
-    try {
-      if (typeof RDStationForms === "undefined") return;
+    const payload = {
+      event_type: "CONVERSION",
+      event_family: "CDP",
+      payload: {
+        conversion_identifier: source || "Site GCA",
+        name:         data.nome,
+        email:        data.email,
+        mobile_phone: data.telefone,
+        cf_razao_social: data.razao,
+        cf_cnpj:      data.cnpj,
+        traffic_source: source || "Site GCA",
+      },
+    };
 
-      // Cria uma instância oculta do formulário RD (sem renderizar na tela)
-      const instance = new RDStationForms(RD_FORM_ID, "null");
-
-      // Aguarda o form ser inicializado antes de submeter
-      instance.createForm().then(function () {
-        // Localiza o form oculto injetado pelo RD no DOM
-        const rdForm = document.querySelector(
-          "#" + RD_FORM_ID + " form, [data-rf-id='" + RD_FORM_ID + "'] form"
-        );
-        if (!rdForm) return;
-
-        // Preenche os campos mapeados do formulário RD
-        const fieldMap = {
-          email:          data.email,
-          name:           data.nome,
-          mobile_phone:   data.telefone,
-          cf_razao_social: data.razao,
-          cf_cnpj:        data.cnpj,
-          // campo de tráfego/origem (se existir no formulário RD)
-          traffic_source: source,
-        };
-
-        Object.entries(fieldMap).forEach(function ([key, value]) {
-          const el = rdForm.querySelector(
-            "[name='" + key + "'], [id='" + key + "']"
-          );
-          if (el) el.value = value;
-        });
-
-        // Dispara o submit do form RD (ele faz o POST para a API deles)
-        rdForm.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-      }).catch(function () {
-        // falha silenciosa
+    return fetch(
+      "https://api.rd.station.com/platform/contacts/conversions?client_id=" + RD_CLIENT_ID,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }
+    )
+      .then(function (res) {
+        if (!res.ok) {
+          // Loga erro mas não bloqueia o WhatsApp
+          res.text().then(function (t) {
+            console.warn("[RD Station] resposta de erro:", res.status, t);
+          });
+        }
+      })
+      .catch(function (err) {
+        // Falha de rede — silenciosa para não bloquear o WhatsApp
+        console.warn("[RD Station] falha na requisição:", err);
       });
-    } catch (err) {
-      // falha silenciosa — nunca bloqueia o WhatsApp
-      console.warn("[RD Station] erro ao enviar lead:", err);
-    }
   }
 
   // ─── VIDEOS LAZY ───────────────────────────────────────────────────────────
@@ -140,10 +138,7 @@
 
     const source = overlay.dataset.source || "Site";
 
-    // 1. Envia para o RD Station (assíncrono, silencioso)
-    sendToRDStation(data, source);
-
-    // 2. Abre WhatsApp normalmente
+    // Monta mensagem do WhatsApp
     const msg =
       "Olá! Gostaria de falar com um especialista do Grupo Cipriano Ayala.%0A%0A" +
       "*Nome:* "         + encodeURIComponent(data.nome)     + "%0A" +
@@ -153,12 +148,29 @@
       "*Email:* "        + encodeURIComponent(data.email)    + "%0A" +
       "*Origem:* "       + encodeURIComponent(source);
 
-    window.open(
-      "https://wa.me/" + WHATSAPP + "?text=" + msg,
-      "_blank",
-      "noopener,noreferrer"
-    );
+    const waUrl = "https://wa.me/" + WHATSAPP + "?text=" + msg;
+
+    // Fecha modal imediatamente para melhor UX
     closeModal();
+
+    // 1. Dispara envio para RD Station (assíncrono)
+    // 2. Abre WhatsApp após resposta da API OU após 3s de timeout
+    //    (garante que o lead seja registrado antes de sair da página)
+    var rdDone = false;
+
+    function openWhatsApp() {
+      if (rdDone) return;
+      rdDone = true;
+      window.open(waUrl, "_blank", "noopener,noreferrer");
+    }
+
+    // Timeout de segurança: abre WhatsApp em no máximo 3 segundos
+    var safetyTimer = setTimeout(openWhatsApp, 3000);
+
+    sendToRDStation(data, source).then(function () {
+      clearTimeout(safetyTimer);
+      openWhatsApp();
+    });
   });
 
   function showError(msg) {
