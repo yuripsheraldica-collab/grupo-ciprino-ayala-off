@@ -1,15 +1,20 @@
 (function () {
   const WHATSAPP = "5515998589225";
-
-  // ─── RD STATION ────────────────────────────────────────────────────────────
-  // Token público do RD Station Marketing — Grupo Cipriano Ayala
   const RD_API_KEY = "89ca4966e0480018e3ee9aed5b1b6e92";
 
-  /**
-   * Envia lead para o RD Station Marketing via endpoint oficial de conversões.
-   * POST https://api.rd.services/platform/conversions?api_key=...
-   * Docs: https://developers.rdstation.com/reference/conversao
-   */
+  // Mostra um toast fixo na tela com o resultado do RD Station
+  function showToast(msg, color) {
+    var t = document.createElement("div");
+    t.textContent = msg;
+    t.style.cssText =
+      "position:fixed;bottom:20px;left:50%;transform:translateX(-50%);" +
+      "background:" + color + ";color:#fff;padding:12px 24px;border-radius:8px;" +
+      "font-size:14px;font-family:sans-serif;z-index:99999;max-width:90%;text-align:center;" +
+      "box-shadow:0 4px 12px rgba(0,0,0,0.3);";
+    document.body.appendChild(t);
+    setTimeout(function () { t.remove(); }, 8000);
+  }
+
   function sendToRDStation(data, source) {
     var payload = {
       event_type: "CONVERSION",
@@ -25,6 +30,8 @@
       },
     };
 
+    console.log("[RD Station] Payload:", JSON.stringify(payload));
+
     return fetch(
       "https://api.rd.services/platform/conversions?api_key=" + RD_API_KEY,
       {
@@ -34,16 +41,18 @@
       }
     )
       .then(function (res) {
-        if (!res.ok) {
-          res.text().then(function (t) {
-            console.warn("[RD Station] erro " + res.status + ":", t);
-          });
-        } else {
-          console.info("[RD Station] lead enviado com sucesso.");
-        }
+        return res.text().then(function (body) {
+          console.log("[RD Station] Status:", res.status, "| Body:", body);
+          if (res.ok) {
+            showToast("✅ RD Station: lead enviado! (HTTP " + res.status + ")", "#16a34a");
+          } else {
+            showToast("❌ RD Station erro " + res.status + ": " + body, "#dc2626");
+          }
+        });
       })
       .catch(function (err) {
-        console.warn("[RD Station] falha de rede:", err);
+        console.error("[RD Station] Falha:", err);
+        showToast("❌ RD Station falha de rede: " + (err.message || err), "#dc2626");
       });
   }
 
@@ -54,13 +63,10 @@
     var id     = wrap.getAttribute("data-video-id");
     if (!btn || !iframe || !id) return;
     btn.addEventListener("click", function () {
-      var origin =
-        window.location.origin && window.location.origin !== "null"
-          ? window.location.origin
-          : "";
+      var origin = window.location.origin && window.location.origin !== "null"
+        ? window.location.origin : "";
       iframe.src =
-        "https://www.youtube-nocookie.com/embed/" +
-        id +
+        "https://www.youtube-nocookie.com/embed/" + id +
         "?autoplay=1&rel=0&modestbranding=1" +
         (origin ? "&origin=" + encodeURIComponent(origin) : "");
       wrap.classList.add("is-playing");
@@ -102,11 +108,9 @@
   overlay.querySelectorAll("[data-close-modal]").forEach(function (el) {
     el.addEventListener("click", closeModal);
   });
-
   overlay.addEventListener("click", function (e) {
     if (e.target === overlay) closeModal();
   });
-
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") closeModal();
   });
@@ -153,7 +157,6 @@
       window.open(waUrl, "_blank", "noopener,noreferrer");
     }
 
-    // Abre WhatsApp após RD responder, ou em no máximo 3s
     var timer = setTimeout(openWhatsApp, 3000);
     sendToRDStation(data, source).then(function () {
       clearTimeout(timer);
