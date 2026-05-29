@@ -2,25 +2,12 @@
   const WHATSAPP = "5515998589225";
   const RD_API_KEY = "89ca4966e0480018e3ee9aed5b1b6e92";
 
-  // Mostra um toast fixo na tela com o resultado do RD Station
-  function showToast(msg, color) {
-    var t = document.createElement("div");
-    t.textContent = msg;
-    t.style.cssText =
-      "position:fixed;bottom:20px;left:50%;transform:translateX(-50%);" +
-      "background:" + color + ";color:#fff;padding:12px 24px;border-radius:8px;" +
-      "font-size:14px;font-family:sans-serif;z-index:99999;max-width:90%;text-align:center;" +
-      "box-shadow:0 4px 12px rgba(0,0,0,0.3);";
-    document.body.appendChild(t);
-    setTimeout(function () { t.remove(); }, 8000);
-  }
-
   function sendToRDStation(data, source) {
     var payload = {
       event_type: "CONVERSION",
       event_family: "CDP",
       payload: {
-        conversion_identifier: "Site GCA - " + (source || "Formulário"),
+        conversion_identifier: "formulario-nativo", // ← identificador exato do formulário RD
         name:           data.nome,
         email:          data.email,
         mobile_phone:   data.telefone,
@@ -29,8 +16,6 @@
         traffic_source: source || "Site",
       },
     };
-
-    console.log("[RD Station] Payload:", JSON.stringify(payload));
 
     return fetch(
       "https://api.rd.services/platform/conversions?api_key=" + RD_API_KEY,
@@ -42,17 +27,11 @@
     )
       .then(function (res) {
         return res.text().then(function (body) {
-          console.log("[RD Station] Status:", res.status, "| Body:", body);
-          if (res.ok) {
-            showToast("✅ RD Station: lead enviado! (HTTP " + res.status + ")", "#16a34a");
-          } else {
-            showToast("❌ RD Station erro " + res.status + ": " + body, "#dc2626");
-          }
+          return { status: res.status, body: body, ok: res.ok };
         });
       })
       .catch(function (err) {
-        console.error("[RD Station] Falha:", err);
-        showToast("❌ RD Station falha de rede: " + (err.message || err), "#dc2626");
+        return { status: 0, body: err.message || String(err), ok: false };
       });
   }
 
@@ -117,7 +96,7 @@
 
   if (!form) return;
 
-  // ─── SUBMIT ────────────────────────────────────────────────────────────────
+  // ─── SUBMIT ── ainda com alert de debug ────────────────────────────────────
   form.addEventListener("submit", function (e) {
     e.preventDefault();
 
@@ -150,17 +129,14 @@
 
     closeModal();
 
-    var waDone = false;
-    function openWhatsApp() {
-      if (waDone) return;
-      waDone = true;
+    sendToRDStation(data, source).then(function (result) {
+      alert(
+        "=== RD Station ===\n" +
+        "Status HTTP: " + result.status + "\n" +
+        "Resposta: " + result.body + "\n\n" +
+        (result.ok ? "✅ SUCESSO — lead registrado!" : "❌ ERRO — lead NÃO registrado.")
+      );
       window.open(waUrl, "_blank", "noopener,noreferrer");
-    }
-
-    var timer = setTimeout(openWhatsApp, 3000);
-    sendToRDStation(data, source).then(function () {
-      clearTimeout(timer);
-      openWhatsApp();
     });
   });
 
