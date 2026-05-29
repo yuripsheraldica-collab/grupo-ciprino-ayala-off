@@ -7,7 +7,7 @@
       event_type: "CONVERSION",
       event_family: "CDP",
       payload: {
-        conversion_identifier: "formulario-nativo", // ← identificador exato do formulário RD
+        conversion_identifier: "formulario-nativo",
         name:           data.nome,
         email:          data.email,
         mobile_phone:   data.telefone,
@@ -26,12 +26,14 @@
       }
     )
       .then(function (res) {
-        return res.text().then(function (body) {
-          return { status: res.status, body: body, ok: res.ok };
-        });
+        if (!res.ok) {
+          res.text().then(function (t) {
+            console.warn("[RD Station] erro " + res.status + ":", t);
+          });
+        }
       })
       .catch(function (err) {
-        return { status: 0, body: err.message || String(err), ok: false };
+        console.warn("[RD Station] falha de rede:", err);
       });
   }
 
@@ -96,7 +98,7 @@
 
   if (!form) return;
 
-  // ─── SUBMIT ── ainda com alert de debug ────────────────────────────────────
+  // ─── SUBMIT ────────────────────────────────────────────────────────────────
   form.addEventListener("submit", function (e) {
     e.preventDefault();
 
@@ -129,14 +131,17 @@
 
     closeModal();
 
-    sendToRDStation(data, source).then(function (result) {
-      alert(
-        "=== RD Station ===\n" +
-        "Status HTTP: " + result.status + "\n" +
-        "Resposta: " + result.body + "\n\n" +
-        (result.ok ? "✅ SUCESSO — lead registrado!" : "❌ ERRO — lead NÃO registrado.")
-      );
+    var waDone = false;
+    function openWhatsApp() {
+      if (waDone) return;
+      waDone = true;
       window.open(waUrl, "_blank", "noopener,noreferrer");
+    }
+
+    var timer = setTimeout(openWhatsApp, 3000);
+    sendToRDStation(data, source).then(function () {
+      clearTimeout(timer);
+      openWhatsApp();
     });
   });
 
